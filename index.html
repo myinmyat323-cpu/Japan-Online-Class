@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JLPT Learning Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                        background: {
+                            light: '#FFFFFF',
+                            dark: '#181818'
+                        }
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                        'slide-up': 'slideUp 0.3s ease-out',
+                        'pulse-slow': 'pulse 3s infinite',
+                    }
+                }
+            },
+            darkMode: 'class'
+        }
+    </script>
+    
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .dark .glass-effect {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #5D5CDE;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hover-lift {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .hover-lift:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-gray-100 min-h-screen">
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50">
+        <div class="text-center">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <p class="text-gray-600 dark:text-gray-400">Loading JLPT Platform...</p>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div id="app" class="hidden">
+        <!-- Navigation -->
+        <nav class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-lg border-b dark:border-gray-700 sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-graduation-cap text-white text-lg"></i>
+                            </div>
+                            <div>
+                                <span class="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">JLPT Learning</span>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Professional Platform</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div id="userInfo" class="hidden bg-green-100 dark:bg-green-900/30 px-3 py-1 rounded-full">
+                            <span id="userStatus" class="text-sm font-medium text-green-800 dark:text-green-300"></span>
+                        </div>
+                        <button id="loginBtn" class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl">
+                            <i class="fas fa-user-shield mr-2"></i>Admin Access
+                        </button>
+                        <button id="logoutBtn" class="hidden bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-lg">
+                            <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Admin Login Modal -->
+        <div id="adminLoginModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 animate-fade-in">
+            <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4 animate-slide-up">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-user-shield text-white text-2xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Admin Access</h2>
+                    <p class="text-gray-600 dark:text-gray-400 mt-2">Enter your admin credentials</p>
+                </div>
+                <form id="adminLoginForm">
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Username</label>
+                        <input type="text" id="adminUsername" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 text-base transition-all duration-200" placeholder="Enter admin username" required>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" id="cancelLogin" class="px-6 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200">Cancel</button>
+                        <button type="submit" class="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 shadow-lg">
+                            <i class="fas fa-sign-in-alt mr-2"></i>Login
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- User Registration Modal -->
+        <div id="userRegModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 animate-fade-in">
+            <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4 animate-slide-up">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-user-plus text-white text-2xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Request Membership</h2>
+                    <p class="text-gray-600 dark:text-gray-400 mt-2">Join our JLPT learning community</p>
+                </div>
+                <form id="userRegForm">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Full Name</label>
+                        <input type="text" id="userName" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 text-base transition-all duration-200" placeholder="Enter your full name" required>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Email Address</label>
+                        <input type="email" id="userEmail" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 text-base transition-all duration-200" placeholder="Enter your email" required>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" id="cancelUserReg" class="px-6 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200">Cancel</button>
+                        <button type="submit" class="px-6 py-3 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-xl hover:from-green-600 hover:to-blue-700 transition-all duration-200 shadow-lg">
+                            <i class="fas fa-paper-plane mr-2"></i>Submit Request
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Check Status Modal -->
+        <div id="checkStatusModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 animate-fade-in">
+            <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4 animate-slide-up">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-search text-white text-2xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Check Status</h2>
+                    <p class="text-gray-600 dark:text-gray-400 mt-2">Verify your membership status</p>
+                </div>
+                <form id="checkStatusForm">
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Email Address</label>
+                        <input type="email" id="statusEmail" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-base transition-all duration-200" placeholder="Enter your registered email" required>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" id="cancelStatusCheck" class="px-6 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200">Cancel</button>
+                        <button type="submit" class="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-lg">
+                            <i class="fas fa-search mr-2"></i>Check Status
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- User View -->
+            <div id="userView">
+                <!-- Hero Section -->
+                <div class="text-center mb-16">
+                    <div class="mb-8">
+                        <h1 class="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-purple-600 via-blue-600 to-green-500 bg-clip-text text-transparent animate-fade-in">
+                            Master Japanese
+                        </h1>
+                        <p class="text-xl md:text-2xl text-gray-600 dark:text-gray-400 mb-8 max-w-3xl mx-auto leading-relaxed">
+                            Your comprehensive JLPT preparation platform with expert-curated content and interactive learning materials
+                        </p>
+                    </div>
+                    
+                    <!-- Membership Request Section -->
+                    <div id="membershipSection" class="space-y-8 animate-fade-in">
+                        <!-- Membership Prices -->
+                        <div class="glass-effect rounded-2xl p-8 mb-8 max-w-4xl mx-auto">
+                            <h3 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+                                <i class="fas fa-crown text-yellow-500 mr-2"></i>
+                                Membership Plans
+                            </h3>
+                            <div class="grid grid-cols-2 md:grid-cols-5 gap-4" id="priceGrid">
+                                <div class="text-center p-4 bg-white/80 dark:bg-gray-800/80 rounded-xl hover-lift">
+                                    <div class="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">N5</div>
+                                    <div class="text-sm text-gray-500 dark:text-gray-400 mb-2">Beginner</div>
+                                    <div class="text-lg font-semibold" data-level="N5">Loading...</div>
+                                </div>
+                                <div class="text-center p-4 bg-white/80 dark:bg-gray-800/80 rounded-xl hover-lift">
+                                    <div class="text-2xl font-bold text-orange-600 dark:text-orange-400 mb-2">N4</div>
+                                    <div class="text-sm text-gray-500 dark:text-gray-400 mb-2">Elementary</div>
+                                    <div class="text-lg font-semibold" data-level="N4">Loading...</div>
+                                </div>
+                                <div class="text-center p-4 bg-white/80 dark:bg-gray-800/80 rounded-xl hover-lift">
+                                    <div class="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mb-2">N3</div>
+                                    <div class="text-sm text-gray-500 dark:text-gray-400 mb-2">Intermediate</div>
+                                    <div class="text-lg font-semibold" data-level="N3">Loading...</div>
+                                </div>
+                                <div class="text-center p-4 bg-white/80 dark:bg-gray-800/80 rounded-xl hover-lift">
+                                    <div class="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-2">N2</div>
+                                    <div class="text-sm text-gray-500 dark:text-gray-400 mb-2">Advanced</div>
+                                    <div class="text-lg font-semibold" data-level="N2">Loading...</div>
+                                </div>
+                                <div class="text-center p-4 bg-white/80 dark:bg-gray-800/80 rounded-xl hover-lift">
+                                    <div class="text-2xl font-bold text-purple-600 dark:text-purple-400 mb-2">N1</div>
+                                    <div class="text-sm text-gray-500 dark:text-gray-400 mb-2">Expert</div>
+                                    <div class="text-lg font-semibold" data-level="N1">Loading...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="membershipBtn" class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-4 rounded-2xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 text-xl font-semibold shadow-2xl hover:shadow-3xl transform hover:-translate-y-1">
+                            <i class="fas fa-rocket mr-3"></i>Start Your JLPT Journey
+                        </button>
+                        
+                        <!-- Contact Info -->
+                        <div class="glass-effect rounded-2xl p-6 max-w-md mx-auto">
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 text-center">Need assistance? We're here to help!</p>
+                            <div class="flex justify-center">
+                                <a id="telegramLink" href="#" class="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-300 inline-flex items-center shadow-lg hover:shadow-xl">
+                                    <i class="fab fa-telegram-plane mr-2 text-lg"></i>
+                                    Contact Support
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Already submitted a request?</p>
+                            <button id="checkStatusBtn" class="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-lg hover:shadow-xl">
+                                <i class="fas fa-search mr-2"></i>Check Your Status
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Welcome Message for Members -->
+                    <div id="memberWelcome" class="hidden animate-fade-in">
+                        <div class="glass-effect rounded-2xl p-8 inline-block border border-green-200 dark:border-green-800">
+                            <i class="fas fa-check-circle text-green-500 text-4xl mb-4 animate-pulse-slow"></i>
+                            <h3 class="text-2xl font-bold text-green-800 dark:text-green-300 mb-3">Welcome Back, Member!</h3>
+                            <p class="text-green-700 dark:text-green-400 text-lg">You have premium access to all JLPT learning materials. Choose your level below to continue your journey!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- JLPT Levels -->
+                <div id="jlptLevels" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-16 animate-fade-in">
+                    <div class="jlpt-level glass-effect p-8 rounded-2xl text-center cursor-pointer hover-lift border border-red-200 dark:border-red-800 group" data-level="N5">
+                        <div class="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                            <span class="text-2xl font-bold text-white">N5</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-red-600 dark:text-red-400 mb-2">Beginner</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Basic vocabulary & grammar</p>
+                    </div>
+                    <div class="jlpt-level glass-effect p-8 rounded-2xl text-center cursor-pointer hover-lift border border-orange-200 dark:border-orange-800 group" data-level="N4">
+                        <div class="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                            <span class="text-2xl font-bold text-white">N4</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-orange-600 dark:text-orange-400 mb-2">Elementary</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Essential communication</p>
+                    </div>
+                    <div class="jlpt-level glass-effect p-8 rounded-2xl text-center cursor-pointer hover-lift border border-yellow-200 dark:border-yellow-800 group" data-level="N3">
+                        <div class="w-16 h-16 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                            <span class="text-2xl font-bold text-white">N3</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-yellow-600 dark:text-yellow-400 mb-2">Intermediate</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Everyday conversations</p>
+                    </div>
+                    <div class="jlpt-level glass-effect p-8 rounded-2xl text-center cursor-pointer hover-lift border border-blue-200 dark:border-blue-800 group" data-level="N2">
+                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                            <span class="text-2xl font-bold text-white">N2</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-blue-600 dark:text-blue-400 mb-2">Advanced</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Complex discussions</p>
+                    </div>
+                    <div class="jlpt-level glass-effect p-8 rounded-2xl text-center cursor-pointer hover-lift border border-purple-200 dark:border-purple-800 group" data-level="N1">
+                        <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                            <span class="text-2xl font-bold text-white">N1</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-purple-600 dark:text-purple-400 mb-2">Expert</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Native-level fluency</p>
+                    </div>
+                </div>
+
+                <!-- Content Display -->
+                <div id="contentDisplay" class="hidden animate-fade-in">
+                    <div class="flex items-center justify-between mb-8">
+                        <h2 id="selectedLevel" class="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent"></h2>
+                        <button id="backBtn" class="text-purple-600 hover:text-purple-700 dark:text-purple-400 transition-colors duration-200 flex items-center space-x-2 text-lg">
+                            <i class="fas fa-arrow-left"></i>
+                            <span>Back to Levels</span>
+                        </button>
+                    </div>
+                    <div id="contentGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+                </div>
+
+                <!-- Membership Required Message -->
+                <div id="membershipRequired" class="hidden glass-effect rounded-2xl p-8 text-center border border-yellow-200 dark:border-yellow-800 animate-fade-in">
+                    <i class="fas fa-lock text-6xl text-yellow-500 mb-6 animate-pulse-slow"></i>
+                    <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Premium Content</h3>
+                    <p class="text-gray-600 dark:text-gray-400 mb-6 text-lg">This content requires a premium membership to access. Join our community today!</p>
+                    <button id="membershipBtn2" class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-3 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg">
+                        <i class="fas fa-crown mr-2"></i>Get Premium Access
+                    </button>
+                </div>
+            </div>
+
+            <!-- Admin View -->
+            <div id="adminView" class="hidden animate-fade-in">
+                <div class="flex justify-between items-center mb-8">
+                    <div>
+                        <h1 class="text-4xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
+                        <p class="text-gray-600 dark:text-gray-400 mt-2">Manage your JLPT learning platform</p>
+                    </div>
+                    <div class="flex space-x-4">
+                        <button id="manageContentBtn" class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg">
+                            <i class="fas fa-plus mr-2"></i>Add Content
+                        </button>
+                        <button id="manageMembersBtn" class="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-lg">
+                            <i class="fas fa-users mr-2"></i>Manage Members
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Admin Tabs -->
+                <div class="mb-8">
+                    <div class="border-b border-gray-200 dark:border-gray-700">
+                        <nav class="-mb-px flex space-x-8">
+                            <button class="admin-tab active border-b-2 border-purple-500 text-purple-600 py-3 px-1 font-medium" data-tab="content">
+                                <i class="fas fa-file-alt mr-2"></i>Content Management
+                            </button>
+                            <button class="admin-tab border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 py-3 px-1 font-medium" data-tab="members">
+                                <i class="fas fa-users mr-2"></i>Member Requests
+                            </button>
+                            <button class="admin-tab border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 py-3 px-1 font-medium" data-tab="settings">
+                                <i class="fas fa-cog mr-2"></i>Settings
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+
+                <!-- Content Management Tab -->
+                <div id="contentTab" class="admin-tab-content">
+                    <!-- Add Content Form -->
+                    <div class="glass-effect rounded-2xl p-8 mb-8">
+                        <h2 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+                            <i class="fas fa-plus-circle text-purple-500 mr-2"></i>Add New Content
+                        </h2>
+                        <form id="addContentForm">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">JLPT Level</label>
+                                    <select id="contentLevel" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 text-base" required>
+                                        <option value="">Select Level</option>
+                                        <option value="N5">N5 - Beginner</option>
+                                        <option value="N4">N4 - Elementary</option>
+                                        <option value="N3">N3 - Intermediate</option>
+                                        <option value="N2">N2 - Advanced</option>
+                                        <option value="N1">N1 - Expert</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Content Type</label>
+                                    <select id="contentType" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 text-base" required>
+                                        <option value="">Select Type</option>
+                                        <option value="video">📹 Video</option>
+                                        <option value="image">🖼️ Image</option>
+                                        <option value="text">📝 Text</option>
+                                    </select>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Title</label>
+                                    <input type="text" id="contentTitle" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 text-base" placeholder="Enter content title" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Sequence Number</label>
+                                    <input type="number" id="contentSequence" min="1" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 text-base" placeholder="1" required>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Description</label>
+                                    <textarea id="contentDescription" rows="3" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 text-base" placeholder="Describe your content" required></textarea>
+                                </div>
+                                
+                                <!-- Dynamic content fields based on type -->
+                                <div id="videoUrlField" class="md:col-span-2 hidden">
+                                    <div class="grid grid-cols-1 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Video URL</label>
+                                            <input type="url" id="videoUrl" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 text-base" placeholder="https://example.com/video.mp4">
+                                        </div>
+                                        <div class="text-center">
+                                            <span class="text-gray-500 dark:text-gray-400">OR</span>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Upload Video File</label>
+                                            <input type="file" id="videoFile" accept="video/*" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 text-base">
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Supported: MP4, WebM, OGV</p>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Video Thumbnail (Optional)</label>
+                                            <input type="file" id="videoThumbnail" accept="image/*" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 text-base">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="imageUrlField" class="md:col-span-2 hidden">
+                                    <div class="grid grid-cols-1 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Image URL</label>
+                                            <input type="url" id="imageUrl" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 text-base" placeholder="https://example.com/image.jpg">
+                                        </div>
+                                        <div class="text-center">
+                                            <span class="text-gray-500 dark:text-gray-400">OR</span>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Upload Image File</label>
+                                            <input type="file" id="imageFile" accept="image/*" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 text-base">
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Supported: JPG, PNG, GIF, WebP</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="textContentField" class="md:col-span-2 hidden">
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Text Content (Markdown supported)</label>
+                                    <textarea id="textContent" rows="8" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 text-base font-mono" placeholder="Enter your content here..."></textarea>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-8 flex justify-end">
+                                <button type="submit" class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-3 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg">
+                                    <i class="fas fa-save mr-2"></i>Add Content
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Content List -->
+                    <div class="glass-effect rounded-2xl p-8">
+                        <h2 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+                            <i class="fas fa-list text-blue-500 mr-2"></i>Existing Content
+                        </h2>
+                        <div id="adminContentList" class="space-y-4"></div>
+                    </div>
+                </div>
+
+                <!-- Members Management Tab -->
+                <div id="membersTab" class="admin-tab-content hidden">
+                    <div class="glass-effect rounded-2xl p-8">
+                        <h2 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+                            <i class="fas fa-user-check text-green-500 mr-2"></i>Membership Requests
+                        </h2>
+                        <div id="memberRequestsList" class="space-y-4"></div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="settingsTab" class="admin-tab-content hidden">
+                    <div class="glass-effect rounded-2xl p-8 mb-8">
+                        <h2 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+                            <i class="fas fa-cog text-blue-500 mr-2"></i>General Settings
+                        </h2>
+                        <form id="settingsForm">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Telegram Link</label>
+                                    <input type="url" id="settingsTelegram" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-base" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Contact Email</label>
+                                    <input type="email" id="settingsEmail" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-base" required>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Phone Number</label>
+                                    <input type="tel" id="settingsPhone" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-base" required>
+                                </div>
+                            </div>
+                            <div class="mt-6 flex justify-end">
+                                <button type="submit" class="bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-3 rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-lg">
+                                    <i class="fas fa-save mr-2"></i>Save Settings
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="glass-effect rounded-2xl p-8">
+                        <h2 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+                            <i class="fas fa-dollar-sign text-green-500 mr-2"></i>Membership Prices (Kyats)
+                        </h2>
+                        <form id="pricesForm">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">N5 Price</label>
+                                    <input type="number" id="priceN5" min="0" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 text-base" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">N4 Price</label>
+                                    <input type="number" id="priceN4" min="0" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 text-base" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">N3 Price</label>
+                                    <input type="number" id="priceN3" min="0" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 text-base" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">N2 Price</label>
+                                    <input type="number" id="priceN2" min="0" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 text-base" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">N1 Price</label>
+                                    <input type="number" id="priceN1" min="0" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 text-base" placeholder="Coming Soon">
+                                </div>
+                            </div>
+                            <div class="mt-6 flex justify-end">
+                                <button type="submit" class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-3 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg">
+                                    <i class="fas fa-dollar-sign mr-2"></i>Update Prices
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Content View Modal -->
+        <div id="contentModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 animate-fade-in" onclick="if(event.target === this) closeContentModal()">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-slide-up" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-center p-6 border-b dark:border-gray-700">
+                    <h2 id="modalTitle" class="text-2xl font-bold text-gray-900 dark:text-white"></h2>
+                    <button id="closeModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div id="modalContent" class="p-6"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCxqNyST6AIrhg5JWjOUChxS31mhMKcpFo",
+            authDomain: "uptime-tube-eda52.firebaseapp.com",
+            databaseURL: "https://uptime-tube-eda52-default-rtdb.firebaseio.com/",
+            projectId: "uptime-tube-eda52",
+            storageBucket: "uptime-tube-eda52.appspot.com",
+            messagingSenderId: "492215033848",
+            appId: "1:492215033848:android:31c6c9f2457ccb6487400d"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Application state
+        let appData = {
+            isAdminLoggedIn: false,
+            currentUser: null,
+            members: [],
+            memberRequests: [],
+            contents: [],
+            settings: {
+                telegramLink: 'https://t.me/jlptlearning',
+                email: 'admin@jlptlearning.com',
+                phone: '+95-9-123-456-789',
+                prices: {
+                    N5: 20000,
+                    N4: 35000,
+                    N3: 55000,
+                    N2: 80000,
+                    N1: null
+                }
+            },
+            sessionData: {
+                rememberUser: null
+            }
+        };
+
+        // Dark mode setup
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+
+        // Firebase Helper Functions
+        async function saveToFirebase(path, data) {
+            try {
+                await database.ref(path).set(data);
+                return true;
+            } catch (error) {
+                console.error('Firebase save error:', error);
+                showAlert('Error saving data: ' + error.message);
+                return false;
+            }
+        }
+
+        async function getFromFirebase(path) {
+            try {
+                const snapshot = await database.ref(path).once('value');
+                return snapshot.val();
+            } catch (error) {
+                console.error('Firebase get error:', error);
+                return null;
+            }
+        }
+
+        async function deleteFromFirebase(path) {
+            try {
+                await database.ref(path).remove();
+                return true;
+            } catch (error) {
+                console.error('Firebase delete error:', error);
+                return false;
+            }
+        }
+
+        // Load data from Firebase
+        async function loadDataFromFirebase() {
+            try {
+                // Load settings
+                const settings = await getFromFirebase('settings');
+                if (settings) {
+                    appData.settings = { ...appData.settings, ...settings };
+                }
+
+                // Load member requests
+                const memberRequests = await getFromFirebase('memberRequests');
+                if (memberRequests) {
+                    appData.memberRequests = Object.values(memberRequests);
+                }
+
+                // Load members
+                const members = await getFromFirebase('members');
+                if (members) {
+                    appData.members = Object.values(members);
+                }
+
+                // Load contents
+                const contents = await getFromFirebase('contents');
+                if (contents) {
+                    appData.contents = Object.values(contents);
+                }
+
+                // Load session data
+                const sessionData = await getFromFirebase('sessionData');
+                if (sessionData) {
+                    appData.sessionData = { ...appData.sessionData, ...sessionData };
+                }
+
+            } catch (error) {
+                console.error('Error loading data from Firebase:', error);
+            }
+        }
+
+        // Custom modal functions
+        function showAlert(message) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full mx-4 animate-slide-up">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-info-circle text-blue-500 text-3xl mb-2"></i>
+                        <p class="text-gray-700 dark:text-gray-300">${message}</p>
+                    </div>
+                    <div class="flex justify-center">
+                        <button class="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 rounded-xl transition-all duration-200" onclick="this.closest('.fixed').remove()">OK</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function showConfirmDialog(message, onConfirm) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full mx-4 animate-slide-up">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-question-circle text-orange-500 text-3xl mb-2"></i>
+                        <p class="text-gray-700 dark:text-gray-300">${message}</p>
+                    </div>
+                    <div class="flex justify-center space-x-3">
+                        <button class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200" onclick="this.closest('.fixed').remove()">Cancel</button>
+                        <button class="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 rounded-xl transition-all duration-200" onclick="this.closest('.fixed').remove(); (${onConfirm.toString()})()">Confirm</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // DOM elements
+        const loginBtn = document.getElementById('loginBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const adminLoginModal = document.getElementById('adminLoginModal');
+        const userRegModal = document.getElementById('userRegModal');
+        const adminView = document.getElementById('adminView');
+        const userView = document.getElementById('userView');
+        const userInfo = document.getElementById('userInfo');
+        const userStatus = document.getElementById('userStatus');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const app = document.getElementById('app');
+
+        // Initialize app
+        async function initApp() {
+            try {
+                // Show loading
+                loadingOverlay.classList.remove('hidden');
+                
+                // Load data from Firebase with timeout
+                const loadingPromise = loadDataFromFirebase();
+                const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 3000)); // 3 second timeout
+                
+                await Promise.race([loadingPromise, timeoutPromise]);
+                
+                checkStoredMember();
+                updateTelegramLink();
+                updatePriceDisplay();
+                updateUI();
+                bindEvents();
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                showAlert('Loading failed, but you can still use the platform. Some features may be limited.');
+            } finally {
+                // Always hide loading and show app after maximum 3 seconds
+                loadingOverlay.classList.add('hidden');
+                app.classList.remove('hidden');
+            }
+        }
+
+        function updateUI() {
+            if (appData.isAdminLoggedIn) {
+                adminView.classList.remove('hidden');
+                userView.classList.add('hidden');
+                loginBtn.classList.add('hidden');
+                logoutBtn.classList.remove('hidden');
+                userInfo.classList.remove('hidden');
+                userStatus.textContent = 'Administrator';
+            } else {
+                adminView.classList.add('hidden');
+                userView.classList.remove('hidden');
+                loginBtn.classList.remove('hidden');
+                logoutBtn.classList.add('hidden');
+                
+                const membershipSection = document.getElementById('membershipSection');
+                const memberWelcome = document.getElementById('memberWelcome');
+                const jlptLevels = document.getElementById('jlptLevels');
+                
+                if (appData.currentUser && appData.currentUser.approved) {
+                    userInfo.classList.remove('hidden');
+                    userStatus.textContent = 'Premium Member';
+                    if (membershipSection) membershipSection.classList.add('hidden');
+                    if (memberWelcome) memberWelcome.classList.remove('hidden');
+                    if (jlptLevels) jlptLevels.classList.remove('hidden');
+                } else if (appData.currentUser && !appData.currentUser.approved) {
+                    userInfo.classList.remove('hidden');
+                    userStatus.textContent = 'Pending Approval';
+                    if (membershipSection) membershipSection.classList.add('hidden');
+                    if (memberWelcome) memberWelcome.classList.add('hidden');
+                    if (jlptLevels) jlptLevels.classList.add('hidden');
+                } else {
+                    userInfo.classList.add('hidden');
+                    if (membershipSection) membershipSection.classList.remove('hidden');
+                    if (memberWelcome) memberWelcome.classList.add('hidden');
+                    if (jlptLevels) jlptLevels.classList.add('hidden');
+                }
+            }
+        }
+
+        function bindEvents() {
+            // Login/Logout
+            loginBtn.addEventListener('click', () => {
+                adminLoginModal.classList.remove('hidden');
+            });
+
+            logoutBtn.addEventListener('click', () => {
+                appData.isAdminLoggedIn = false;
+                appData.currentUser = null;
+                updateUI();
+            });
+
+            // Admin login form
+            document.getElementById('adminLoginForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = document.getElementById('adminUsername').value;
+                if (username === 'ozai295801') {
+                    appData.isAdminLoggedIn = true;
+                    adminLoginModal.classList.add('hidden');
+                    document.getElementById('adminUsername').value = '';
+                    updateUI();
+                    loadAdminContent();
+                } else {
+                    showAlert('Invalid username. Access denied.');
+                }
+            });
+
+            document.getElementById('cancelLogin').addEventListener('click', () => {
+                adminLoginModal.classList.add('hidden');
+                document.getElementById('adminUsername').value = '';
+            });
+
+            // User registration
+            document.getElementById('membershipBtn').addEventListener('click', () => {
+                userRegModal.classList.remove('hidden');
+            });
+
+            document.getElementById('membershipBtn2').addEventListener('click', () => {
+                userRegModal.classList.remove('hidden');
+            });
+
+            // Check status button
+            document.getElementById('checkStatusBtn').addEventListener('click', () => {
+                document.getElementById('checkStatusModal').classList.remove('hidden');
+            });
+
+            // Check status form
+            document.getElementById('checkStatusForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = document.getElementById('statusEmail').value;
+                checkMembershipStatus(email);
+            });
+
+            document.getElementById('cancelStatusCheck').addEventListener('click', () => {
+                document.getElementById('checkStatusModal').classList.add('hidden');
+                document.getElementById('checkStatusForm').reset();
+            });
+
+            document.getElementById('userRegForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('userName').value;
+                const email = document.getElementById('userEmail').value;
+                
+                const existingRequest = appData.memberRequests.find(req => req.email === email);
+                if (existingRequest) {
+                    showAlert('A request with this email already exists.');
+                    return;
+                }
+
+                const newRequest = {
+                    id: Date.now(),
+                    name,
+                    email,
+                    timestamp: new Date().toLocaleString(),
+                    approved: false
+                };
+
+                appData.memberRequests.push(newRequest);
+                await saveToFirebase('memberRequests', appData.memberRequests.reduce((acc, req) => {
+                    acc[req.id] = req;
+                    return acc;
+                }, {}));
+
+                userRegModal.classList.add('hidden');
+                document.getElementById('userRegForm').reset();
+                showAlert('Your membership request has been submitted successfully! Please wait for admin approval.');
+            });
+
+            document.getElementById('cancelUserReg').addEventListener('click', () => {
+                userRegModal.classList.add('hidden');
+                document.getElementById('userRegForm').reset();
+            });
+
+            // JLPT level selection
+            document.querySelectorAll('.jlpt-level').forEach(level => {
+                level.addEventListener('click', () => {
+                    const levelName = level.dataset.level;
+                    showLevelContent(levelName);
+                });
+            });
+
+            // Back button
+            document.getElementById('backBtn').addEventListener('click', () => {
+                document.getElementById('contentDisplay').classList.add('hidden');
+                document.getElementById('jlptLevels').classList.remove('hidden');
+            });
+
+            // Admin tabs
+            document.querySelectorAll('.admin-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.dataset.tab;
+                    switchAdminTab(tabName);
+                });
+            });
+
+            // Settings form
+            document.getElementById('settingsForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                updateSettings();
+            });
+
+            // Prices form
+            document.getElementById('pricesForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                updatePrices();
+            });
+
+            // Content type change
+            document.getElementById('contentType').addEventListener('change', (e) => {
+                const type = e.target.value;
+                document.getElementById('videoUrlField').classList.add('hidden');
+                document.getElementById('imageUrlField').classList.add('hidden');
+                document.getElementById('textContentField').classList.add('hidden');
+
+                if (type === 'video') {
+                    document.getElementById('videoUrlField').classList.remove('hidden');
+                } else if (type === 'image') {
+                    document.getElementById('imageUrlField').classList.remove('hidden');
+                } else if (type === 'text') {
+                    document.getElementById('textContentField').classList.remove('hidden');
+                }
+            });
+
+            // Add content form
+            document.getElementById('addContentForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                addContent();
+            });
+
+            // Modal close
+            document.getElementById('closeModal').addEventListener('click', () => {
+                closeContentModal();
+            });
+        }
+
+        function showLevelContent(level) {
+            if (!appData.currentUser || !appData.currentUser.approved) {
+                document.getElementById('membershipRequired').classList.remove('hidden');
+                document.getElementById('contentDisplay').classList.add('hidden');
+                document.getElementById('jlptLevels').classList.add('hidden');
+                return;
+            }
+
+            document.getElementById('membershipRequired').classList.add('hidden');
+            document.getElementById('selectedLevel').textContent = `${level} Learning Materials`;
+            document.getElementById('contentDisplay').classList.remove('hidden');
+            document.getElementById('jlptLevels').classList.add('hidden');
+
+            const levelContent = appData.contents.filter(content => content.level === level);
+            displayContent(levelContent);
+        }
+
+        function displayContent(contents) {
+            const contentGrid = document.getElementById('contentGrid');
+            contentGrid.innerHTML = '';
+
+            if (contents.length === 0) {
+                contentGrid.innerHTML = `
+                    <div class="col-span-full text-center py-12">
+                        <i class="fas fa-book-open text-6xl text-gray-400 mb-4"></i>
+                        <h3 class="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">No Content Available</h3>
+                        <p class="text-gray-500 dark:text-gray-500">Content for this level is coming soon!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const sortedContents = contents.sort((a, b) => (a.sequence || 999) - (b.sequence || 999));
+
+            sortedContents.forEach(content => {
+                const contentCard = document.createElement('div');
+                contentCard.className = 'glass-effect rounded-2xl overflow-hidden hover-lift cursor-pointer border border-gray-200 dark:border-gray-700 group';
+                
+                const sequenceBadge = content.sequence ? `
+                    <div class="absolute top-4 right-4 bg-purple-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold z-10 shadow-lg">
+                        ${content.sequence}
+                    </div>
+                ` : '';
+
+                let previewImage = '';
+                if (content.type === 'video' && content.thumbnailUrl) {
+                    previewImage = `
+                        <div class="h-48 bg-gradient-to-br from-red-100 to-red-200 dark:from-red-900/30 dark:to-red-800/30 relative overflow-hidden">
+                            <img src="${content.thumbnailUrl}" alt="${content.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                            <div class="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                <i class="fas fa-play-circle text-white text-5xl opacity-80 group-hover:opacity-100 transition-opacity duration-300"></i>
+                            </div>
+                        </div>
+                    `;
+                } else if (content.type === 'image' && content.imageUrl) {
+                    previewImage = `
+                        <div class="h-48 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/30 relative overflow-hidden">
+                            <img src="${content.imageUrl}" alt="${content.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                        </div>
+                    `;
+                } else {
+                    const bgColor = content.type === 'video' ? 'from-red-100 to-red-200 dark:from-red-900/30 dark:to-red-800/30' : 
+                                  content.type === 'image' ? 'from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/30' : 
+                                  'from-green-100 to-green-200 dark:from-green-900/30 dark:to-green-800/30';
+                    const iconColor = content.type === 'video' ? 'text-red-600 dark:text-red-400' : 
+                                    content.type === 'image' ? 'text-blue-600 dark:text-blue-400' : 
+                                    'text-green-600 dark:text-green-400';
+                    
+                    previewImage = `
+                        <div class="h-48 bg-gradient-to-br ${bgColor} flex items-center justify-center">
+                            <i class="fas ${getContentIcon(content.type)} ${iconColor} text-6xl group-hover:scale-110 transition-transform duration-300"></i>
+                        </div>
+                    `;
+                }
+
+                contentCard.innerHTML = `
+                    ${sequenceBadge}
+                    ${previewImage}
+                    <div class="p-6">
+                        <div class="flex items-center mb-3">
+                            <i class="fas ${getContentIcon(content.type)} text-purple-500 text-lg mr-2"></i>
+                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">${content.type}</span>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2 text-gray-900 dark:text-white line-clamp-2">${content.title}</h3>
+                        <p class="text-gray-600 dark:text-gray-400 text-sm line-clamp-3">${content.description}</p>
+                    </div>
+                `;
+                contentCard.addEventListener('click', () => showContentModal(content));
+                contentGrid.appendChild(contentCard);
+            });
+        }
+
+        function getContentIcon(type) {
+            switch (type) {
+                case 'video': return 'fa-play-circle';
+                case 'image': return 'fa-image';
+                case 'text': return 'fa-file-text';
+                default: return 'fa-file';
+            }
+        }
+
+        function showContentModal(content) {
+            const modal = document.getElementById('contentModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+
+            modalTitle.textContent = content.title;
+            
+            if (content.type === 'video' && content.videoUrl) {
+                const thumbnailAttr = content.thumbnailUrl ? `poster="${content.thumbnailUrl}"` : '';
+                modalContent.innerHTML = `
+                    <div class="mb-6">
+                        <video id="modalVideo" controls class="w-full max-h-96 rounded-xl shadow-lg" ${thumbnailAttr}>
+                            <source src="${content.videoUrl}" type="video/mp4">
+                            <source src="${content.videoUrl}" type="video/webm">
+                            <source src="${content.videoUrl}" type="video/ogg">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                    <div class="prose dark:prose-invert max-w-none">
+                        <p class="text-gray-600 dark:text-gray-400 text-lg">${content.description}</p>
+                    </div>
+                `;
+                
+                setTimeout(() => {
+                    setupVideoVisibilityControl();
+                }, 100);
+                
+            } else if (content.type === 'image' && content.imageUrl) {
+                modalContent.innerHTML = `
+                    <div class="mb-6">
+                        <img src="${content.imageUrl}" alt="${content.title}" class="w-full max-h-96 object-contain rounded-xl shadow-lg mx-auto">
+                    </div>
+                    <div class="prose dark:prose-invert max-w-none">
+                        <p class="text-gray-600 dark:text-gray-400 text-lg">${content.description}</p>
+                    </div>
+                `;
+            } else if (content.type === 'text' && content.content) {
+                const htmlContent = marked.parse(content.content);
+                modalContent.innerHTML = `
+                    <div class="prose dark:prose-invert max-w-none mb-6">
+                        ${htmlContent}
+                    </div>
+                    <div class="border-t dark:border-gray-700 pt-4">
+                        <p class="text-gray-600 dark:text-gray-400 text-lg">${content.description}</p>
+                    </div>
+                `;
+            } else {
+                modalContent.innerHTML = `
+                    <div class="prose dark:prose-invert max-w-none">
+                        <p class="text-gray-600 dark:text-gray-400 text-lg">${content.description}</p>
+                    </div>
+                `;
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function switchAdminTab(tabName) {
+            document.querySelectorAll('.admin-tab').forEach(tab => {
+                tab.classList.remove('active', 'border-purple-500', 'text-purple-600');
+                tab.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'dark:text-gray-400', 'dark:hover:text-gray-300');
+            });
+
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active', 'border-purple-500', 'text-purple-600');
+            document.querySelector(`[data-tab="${tabName}"]`).classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'dark:text-gray-400', 'dark:hover:text-gray-300');
+
+            document.querySelectorAll('.admin-tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+
+            document.getElementById(tabName + 'Tab').classList.remove('hidden');
+
+            if (tabName === 'members') {
+                loadMemberRequests();
+            } else if (tabName === 'settings') {
+                loadAdminSettings();
+            }
+        }
+
+        async function addContent() {
+            const level = document.getElementById('contentLevel').value;
+            const type = document.getElementById('contentType').value;
+            const title = document.getElementById('contentTitle').value;
+            const description = document.getElementById('contentDescription').value;
+            const sequence = parseInt(document.getElementById('contentSequence').value);
+
+            const newContent = {
+                id: Date.now(),
+                level,
+                type,
+                title,
+                description,
+                sequence
+            };
+
+            try {
+                if (type === 'video') {
+                    const videoUrl = document.getElementById('videoUrl').value;
+                    const videoFile = document.getElementById('videoFile').files[0];
+                    const thumbnailFile = document.getElementById('videoThumbnail').files[0];
+
+                    if (videoUrl) {
+                        newContent.videoUrl = videoUrl;
+                    } else if (videoFile) {
+                        newContent.videoUrl = await fileToDataUrl(videoFile);
+                        newContent.isFileUpload = true;
+                    } else {
+                        showAlert('Please provide either a video URL or upload a video file.');
+                        return;
+                    }
+
+                    if (thumbnailFile) {
+                        newContent.thumbnailUrl = await fileToDataUrl(thumbnailFile);
+                    }
+                } else if (type === 'image') {
+                    const imageUrl = document.getElementById('imageUrl').value;
+                    const imageFile = document.getElementById('imageFile').files[0];
+
+                    if (imageUrl) {
+                        newContent.imageUrl = imageUrl;
+                    } else if (imageFile) {
+                        newContent.imageUrl = await fileToDataUrl(imageFile);
+                        newContent.isFileUpload = true;
+                    } else {
+                        showAlert('Please provide either an image URL or upload an image file.');
+                        return;
+                    }
+                } else if (type === 'text') {
+                    newContent.content = document.getElementById('textContent').value;
+                }
+
+                appData.contents.push(newContent);
+                await saveToFirebase('contents', appData.contents.reduce((acc, content) => {
+                    acc[content.id] = content;
+                    return acc;
+                }, {}));
+
+                document.getElementById('addContentForm').reset();
+                showAlert('Content added successfully!');
+                loadAdminContent();
+            } catch (error) {
+                showAlert('Error processing content: ' + error.message);
+            }
+        }
+
+        function fileToDataUrl(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    resolve(e.target.result);
+                };
+                reader.onerror = function(e) {
+                    reject(new Error('Failed to read file'));
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function loadAdminContent() {
+            const contentList = document.getElementById('adminContentList');
+            contentList.innerHTML = '';
+
+            if (appData.contents.length === 0) {
+                contentList.innerHTML = `
+                    <div class="text-center py-8">
+                        <i class="fas fa-folder-open text-4xl text-gray-400 mb-4"></i>
+                        <p class="text-gray-500 dark:text-gray-400">No content available. Add some content to get started!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const sortedContents = appData.contents.sort((a, b) => {
+                if (a.level !== b.level) {
+                    const levelOrder = { 'N5': 1, 'N4': 2, 'N3': 3, 'N2': 4, 'N1': 5 };
+                    return (levelOrder[a.level] || 999) - (levelOrder[b.level] || 999);
+                }
+                return (a.sequence || 999) - (b.sequence || 999);
+            });
+
+            sortedContents.forEach(content => {
+                const contentItem = document.createElement('div');
+                contentItem.className = 'flex justify-between items-center p-6 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-lg transition-all duration-200';
+                contentItem.innerHTML = `
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-2">
+                            <i class="fas ${getContentIcon(content.type)} text-purple-500"></i>
+                            <h4 class="font-semibold text-gray-900 dark:text-white">${content.title}</h4>
+                            ${content.sequence ? `<span class="bg-purple-500 text-white text-xs px-2 py-1 rounded-full">#${content.sequence}</span>` : ''}
+                        </div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">${content.level} - ${content.type}</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">${content.description}</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button class="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-all duration-200" onclick="deleteContent(${content.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                contentList.appendChild(contentItem);
+            });
+        }
+
+        function loadMemberRequests() {
+            const requestsList = document.getElementById('memberRequestsList');
+            requestsList.innerHTML = '';
+
+            if (appData.memberRequests.length === 0) {
+                requestsList.innerHTML = `
+                    <div class="text-center py-8">
+                        <i class="fas fa-users text-4xl text-gray-400 mb-4"></i>
+                        <p class="text-gray-500 dark:text-gray-400">No membership requests yet.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            appData.memberRequests.forEach(request => {
+                const requestItem = document.createElement('div');
+                requestItem.className = 'flex justify-between items-center p-6 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-lg transition-all duration-200';
+                requestItem.innerHTML = `
+                    <div>
+                        <div class="flex items-center gap-3 mb-2">
+                            <i class="fas fa-user text-blue-500"></i>
+                            <h4 class="font-semibold text-gray-900 dark:text-white">${request.name}</h4>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">${request.email}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-500 mb-2">Requested: ${request.timestamp}</p>
+                        <span class="inline-block px-3 py-1 text-xs rounded-full font-medium ${request.approved ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'}">
+                            ${request.approved ? '✓ Approved' : '⏳ Pending'}
+                        </span>
+                    </div>
+                    <div class="flex space-x-3">
+                        ${!request.approved ? `
+                            <button class="bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-lg text-sm hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-lg" onclick="approveMember(${request.id})">
+                                <i class="fas fa-check mr-1"></i>Approve
+                            </button>
+                        ` : ''}
+                        <button class="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg text-sm hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-lg" onclick="deleteMemberRequest(${request.id})">
+                            <i class="fas fa-trash mr-1"></i>Delete
+                        </button>
+                    </div>
+                `;
+                requestsList.appendChild(requestItem);
+            });
+        }
+
+        async function deleteContent(contentId) {
+            showConfirmDialog('Are you sure you want to delete this content? This action cannot be undone.', async () => {
+                appData.contents = appData.contents.filter(content => content.id !== contentId);
+                await saveToFirebase('contents', appData.contents.reduce((acc, content) => {
+                    acc[content.id] = content;
+                    return acc;
+                }, {}));
+                loadAdminContent();
+                showAlert('Content deleted successfully!');
+            });
+        }
+
+        async function approveMember(requestId) {
+            const request = appData.memberRequests.find(req => req.id === requestId);
+            if (request) {
+                request.approved = true;
+                appData.members.push(request);
+                
+                await saveToFirebase('memberRequests', appData.memberRequests.reduce((acc, req) => {
+                    acc[req.id] = req;
+                    return acc;
+                }, {}));
+                await saveToFirebase('members', appData.members.reduce((acc, member) => {
+                    acc[member.id] = member;
+                    return acc;
+                }, {}));
+                
+                loadMemberRequests();
+                showAlert('Member approved successfully! They can now access all content.');
+            }
+        }
+
+        async function deleteMemberRequest(requestId) {
+            showConfirmDialog('Are you sure you want to delete this member request?', async () => {
+                appData.memberRequests = appData.memberRequests.filter(req => req.id !== requestId);
+                appData.members = appData.members.filter(member => member.id !== requestId);
+                
+                await saveToFirebase('memberRequests', appData.memberRequests.reduce((acc, req) => {
+                    acc[req.id] = req;
+                    return acc;
+                }, {}));
+                await saveToFirebase('members', appData.members.reduce((acc, member) => {
+                    acc[member.id] = member;
+                    return acc;
+                }, {}));
+                
+                loadMemberRequests();
+                showAlert('Member request deleted successfully!');
+            });
+        }
+
+        // Global functions for onclick handlers
+        window.deleteContent = deleteContent;
+        window.approveMember = approveMember;
+        window.deleteMemberRequest = deleteMemberRequest;
+
+        // Settings and prices management functions
+        async function updateSettings() {
+            const telegram = document.getElementById('settingsTelegram').value;
+            const email = document.getElementById('settingsEmail').value;
+            const phone = document.getElementById('settingsPhone').value;
+
+            appData.settings.telegramLink = telegram;
+            appData.settings.email = email;
+            appData.settings.phone = phone;
+
+            await saveToFirebase('settings', appData.settings);
+            updateTelegramLink();
+            
+            showAlert('Settings updated successfully!');
+        }
+
+        async function updatePrices() {
+            const n5Price = document.getElementById('priceN5').value;
+            const n4Price = document.getElementById('priceN4').value;
+            const n3Price = document.getElementById('priceN3').value;
+            const n2Price = document.getElementById('priceN2').value;
+            const n1Price = document.getElementById('priceN1').value;
+
+            appData.settings.prices.N5 = n5Price ? parseInt(n5Price) : null;
+            appData.settings.prices.N4 = n4Price ? parseInt(n4Price) : null;
+            appData.settings.prices.N3 = n3Price ? parseInt(n3Price) : null;
+            appData.settings.prices.N2 = n2Price ? parseInt(n2Price) : null;
+            appData.settings.prices.N1 = n1Price ? parseInt(n1Price) : null;
+
+            await saveToFirebase('settings', appData.settings);
+            updatePriceDisplay();
+            
+            showAlert('Prices updated successfully!');
+        }
+
+        function loadAdminSettings() {
+            document.getElementById('settingsTelegram').value = appData.settings.telegramLink;
+            document.getElementById('settingsEmail').value = appData.settings.email;
+            document.getElementById('settingsPhone').value = appData.settings.phone;
+
+            document.getElementById('priceN5').value = appData.settings.prices.N5 || '';
+            document.getElementById('priceN4').value = appData.settings.prices.N4 || '';
+            document.getElementById('priceN3').value = appData.settings.prices.N3 || '';
+            document.getElementById('priceN2').value = appData.settings.prices.N2 || '';
+            document.getElementById('priceN1').value = appData.settings.prices.N1 || '';
+        }
+
+        function updateTelegramLink() {
+            const telegramLink = document.getElementById('telegramLink');
+            if (telegramLink) {
+                telegramLink.href = appData.settings.telegramLink;
+                telegramLink.onclick = (e) => {
+                    e.preventDefault();
+                    window.open(appData.settings.telegramLink, '_blank');
+                };
+            }
+        }
+
+        function updatePriceDisplay() {
+            const levels = ['N5', 'N4', 'N3', 'N2', 'N1'];
+            levels.forEach(level => {
+                const priceElement = document.querySelector(`[data-level="${level}"]`);
+                if (priceElement) {
+                    const price = appData.settings.prices[level];
+                    if (price && price > 0) {
+                        priceElement.textContent = `${price.toLocaleString()} Kyats`;
+                    } else {
+                        priceElement.textContent = 'Coming Soon';
+                    }
+                }
+            });
+        }
+
+        async function checkStoredMember() {
+            if (appData.sessionData.rememberUser) {
+                const storedUser = appData.members.find(m => m.email === appData.sessionData.rememberUser && m.approved);
+                if (storedUser) {
+                    appData.currentUser = storedUser;
+                }
+            }
+        }
+
+        async function rememberMember(email) {
+            appData.sessionData.rememberUser = email;
+            await saveToFirebase('sessionData', appData.sessionData);
+        }
+
+        async function checkMembershipStatus(email) {
+            const approvedMember = appData.members.find(m => m.email === email && m.approved);
+            
+            if (approvedMember) {
+                appData.currentUser = approvedMember;
+                await rememberMember(email);
+                updateUI();
+                document.getElementById('checkStatusModal').classList.add('hidden');
+                document.getElementById('checkStatusForm').reset();
+                showAlert('Welcome back! You are now logged in as a premium member.');
+                return;
+            }
+
+            const pendingRequest = appData.memberRequests.find(req => req.email === email && !req.approved);
+            
+            if (pendingRequest) {
+                document.getElementById('checkStatusModal').classList.add('hidden');
+                document.getElementById('checkStatusForm').reset();
+                showAlert('Your membership request is still pending admin approval. Please wait for confirmation.');
+                return;
+            }
+
+            document.getElementById('checkStatusModal').classList.add('hidden');
+            document.getElementById('checkStatusForm').reset();
+            showAlert('No membership request found with this email address. Please submit a new request.');
+        }
+
+        function closeContentModal() {
+            const modal = document.getElementById('contentModal');
+            const video = document.getElementById('modalVideo');
+            
+            if (video) {
+                video.pause();
+                video.currentTime = 0;
+                video.src = '';
+                video.load();
+            }
+            
+            modal.classList.add('hidden');
+        }
+
+        function setupVideoVisibilityControl() {
+            const video = document.getElementById('modalVideo');
+            if (!video) return;
+
+            function handleVisibilityChange() {
+                if (document.hidden || document.visibilityState === 'hidden') {
+                    video.pause();
+                    video.style.display = 'none';
+                } else {
+                    video.style.display = 'block';
+                }
+            }
+
+            function handleWindowFocus() {
+                video.style.display = 'block';
+            }
+
+            function handleWindowBlur() {
+                video.pause();
+                video.style.display = 'none';
+            }
+
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+            window.addEventListener('focus', handleWindowFocus);
+            window.addEventListener('blur', handleWindowBlur);
+
+            const modal = document.getElementById('contentModal');
+            const closeModal = () => {
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+                window.removeEventListener('focus', handleWindowFocus);
+                window.removeEventListener('blur', handleWindowBlur);
+            };
+
+            document.getElementById('closeModal').addEventListener('click', closeModal, { once: true });
+            
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeModal();
+                    modal.classList.add('hidden');
+                }
+            }, { once: true });
+        }
+
+        // Initialize app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
